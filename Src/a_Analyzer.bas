@@ -1,12 +1,16 @@
 Attribute VB_Name = "a_Analyzer"
 Function Analyzer()
-Application.ScreenUpdating = False
+    Application.ScreenUpdating = False
+    Dim Analysis
+    Dim Domo
+                     
 
-
-'get data from fuel processor
-'break out the gallon totals by month and store
+    'get data from fuel processor
+    'break out the gallon totals by month and store
     Sheet4.Cells.Delete
     Sheet8.Cells.Delete
+    Sheet2.ShowAllData
+    
     lastrow = Sheet2.Cells(Sheet2.Rows.Count, "A").End(xlUp).Row
     storelist = UniqueVals(Sheet2.Range("K2:K" & lastrow))
     Sheet2.Columns("A:N").Sort key1:=Sheet2.Range("A2"), _
@@ -16,23 +20,26 @@ Application.ScreenUpdating = False
     datelist = UniqueVals(Sheet2.Range("A2:A" & lastrow))
     storerow = 2
     fcrow = storerow
-    Sheet4.Range("A1").Value = "Store#"
+        
+    ReDim Analysis(1 To Application.CountA(storelist), 1 To (4 + Application.CountA(datelist) * 3))
     
+    Analysis(1, 1) = "Store#"
+
     For Each store In storelist
         mnthcol = 2
-        Sheet4.Range("A" & storerow).Value = store
+        Analysis(storerow, 1) = store
         On Error GoTo 0
         For Each transdate In datelist
         
     'Write the headers
             If storerow = 2 Then
-                Sheet4.Cells(1, mnthcol) = transdate & " Fuel"
-                Sheet4.Cells(1, (mnthcol) + Application.CountA(datelist)) = transdate & " Cars"
-                Sheet4.Cells(1, (mnthcol) + (Application.CountA(datelist) * 2)) = transdate & " F/C"
-                Sheet4.Cells(1, 2 + Application.CountA(datelist) * 3).Value = "Average F/C"
-                Sheet4.Cells(1, 3 + Application.CountA(datelist) * 3).Value = "Day over Day"
-                Sheet4.Cells(1, 4 + Application.CountA(datelist) * 3).Value = "% Change"
-                Sheet8.Range("A1:D1") = Split("Store#,F/C,Transaction Date,Account Name", ",")
+                Analysis(1, mnthcol) = transdate & " Fuel"
+                Analysis(1, (mnthcol) + Application.CountA(datelist)) = transdate & " Cars"
+                Analysis(1, (mnthcol) + (Application.CountA(datelist) * 2)) = transdate & " F/C"
+                Analysis(1, 2 + Application.CountA(datelist) * 3) = "Average F/C"
+                Analysis(1, 3 + Application.CountA(datelist) * 3) = "Day over Day"
+                Analysis(1, 4 + Application.CountA(datelist) * 3) = "% Change"
+                'Sheet8.Range("A1:D1") = Split("Store#,F/C,Transaction Date,Account Name", ",")
             End If
             
     'Get the units of fuel for each month
@@ -45,13 +52,11 @@ Application.ScreenUpdating = False
             totalunits = Application.WorksheetFunction.Sum(Sheet2.Columns("C:C").SpecialCells(xlVisible))
             
             If totalunits <> 0 Then
-                Sheet4.Cells(storerow, mnthcol).Value = totalunits
+                Analysis(storerow, mnthcol) = totalunits
             End If
 
     'Get the inventory for each month
-            Dim invmnthcol As Variant
-            Dim invstorerow As Variant
-                        
+
         On Error GoTo inverror
         
             invmnthcoln = Application.Match(Month(transdate) & ";n", Sheet3.Range("1:1"), 0)
@@ -72,40 +77,44 @@ Application.ScreenUpdating = False
             
             fcvalue = totalunits / invval
             
-            Sheet4.Cells(storerow, (mnthcol) + Application.CountA(datelist)).Value = invval
+            Analysis(storerow, (mnthcol) + Application.CountA(datelist)) = invval
             
             If fcvalue <> 0 Then
-                Sheet4.Cells(storerow, (mnthcol) + (Application.CountA(datelist) * 2)).Value = fcvalue
+                Analysis(storerow, (mnthcol) + (Application.CountA(datelist) * 2)) = fcvalue
             End If
             
-            If fcvalue <> 0 Then
-                Sheet8.Cells(fcrow, 1).Value = store
-                Sheet8.Cells(fcrow, 2).Value = fcvalue
-                Sheet8.Cells(fcrow, 3).Value = transdate
-                Sheet8.Cells(fcrow, 4).Value = Application.WorksheetFunction.VLookup(store, Sheet6.Range("D:E"), 2, 0)
-                fcrow = fcrow + 1
-            End If
+'            If fcvalue <> 0 Then
+'                Sheet8.Cells(fcrow, 1).Value = store
+'                Sheet8.Cells(fcrow, 2).Value = fcvalue
+'                Sheet8.Cells(fcrow, 3).Value = transdate
+'                Sheet8.Cells(fcrow, 4).Value = Application.WorksheetFunction.VLookup(store, Sheet6.Range("D:E"), 2, 0)
+'                fcrow = fcrow + 1
+'            End If
 nxtmnth:
             mnthcol = mnthcol + 1
         Next transdate
         
         On Error GoTo 0
         
-    'Get average, stdev, and cov for F/C
-        Set fcrange = Range(Sheet4.Cells(storerow, 2 + (Application.CountA(datelist) * 2)), Sheet4.Cells(storerow, mnthcol + (Application.CountA(datelist) * 3) + 1))
-        If Application.WorksheetFunction.Count(fcrange) > 0 Then
-            Sheet4.Cells(storerow, 2 + Application.CountA(datelist) * 3).Value = Application.WorksheetFunction.Average(fcrange.Value)
-            Sheet4.Cells(storerow, 3 + Application.CountA(datelist) * 3).Value = Sheet4.Cells(storerow, 1 + Application.CountA(datelist) * 3).Value - Sheet4.Cells(storerow, Application.CountA(datelist) * 3).Value
-            If Sheet4.Cells(storerow, Application.CountA(datelist) * 3).Value <> 0 Then
-                Sheet4.Cells(storerow, 4 + Application.CountA(datelist) * 3).Value = Sheet4.Cells(storerow, 3 + Application.CountA(datelist) * 3).Value / Sheet4.Cells(storerow, Application.CountA(datelist) * 3).Value
-            Else
-                Sheet4.Cells(storerow, 4 + Application.CountA(datelist) * 3).Value = 0
-            End If
-        End If
-        storerow = storerow + 1
+'    'Get average, stdev, and cov for F/C
+'        Set fcrange = Range(Sheet4.Cells(storerow, 2 + (Application.CountA(datelist) * 2)), Sheet4.Cells(storerow, mnthcol + (Application.CountA(datelist) * 3) + 1))
+'        If Application.WorksheetFunction.Count(fcrange) > 0 Then
+'        Analysis(storerow, 2 + Application.CountA(datelist) * 3) = Application.WorksheetFunction.Average(fcrange.Value)
+'            Analysis(storerow, 3 + Application.CountA(datelist) * 3) = Analysis(storerow, 1 + Application.CountA(datelist) * 3) - Analysis(storerow, Application.CountA(datelist) * 3)
+'            If Analysis(storerow, Application.CountA(datelist) * 3) <> 0 Then
+'                Analysis(storerow, 4 + Application.CountA(datelist) * 3) = Analysis(storerow, 3 + Application.CountA(datelist) * 3) / Analysis(storerow, Application.CountA(datelist) * 3)
+'            Else
+'                Analysis(storerow, 4 + Application.CountA(datelist) * 3) = 0
+'            End If
+'        End If
+        
+    storerow = storerow + 1
         
     Next store
     Sheet2.ShowAllData
+    '.Range("A1:" & Split(Cells(1, UBound(fueldata, 2)).Address, "$")(1) & UBound(fueldata, 1)).Value = fueldata
+    
+    Sheet4.Range("A2:" & Split(Cells(1, UBound(Analysis, 2)).Address, "$")(1) & UBound(Analysis, 1)).Value = Analysis
     
     lastcol = Sheet4.Cells(1, Sheet4.Columns.Count).End(xlToLeft).Column
     
@@ -128,36 +137,38 @@ nxtmnth:
     Call FileWriter
     Analyzer = MsgBox("All Done!" & vbNewLine & "The following stores have an unusual variance:" & vbNewLine & varstore)
     
-Exit Function
+    Exit Function
 
 inverror:
     Resume nxtmnth
 
 
 
-Application.ScreenUpdating = True
+    Application.ScreenUpdating = True
 End Function
+
 Function UniqueVals(rangein As Range) As Variant
 
-Dim tmp As String
-Dim cell
+    Dim tmp As String
+    Dim cell
 
-For Each cell In rangein
-      If (cell.Value <> "") And (InStr(1, tmp, cell.Value & "|", vbTextCompare) = 0) Then
-        tmp = tmp & cell.Value & "|"
-      End If
-   Next cell
+    For Each cell In rangein
+        If (cell.Value <> "") And (InStr(1, tmp, cell.Value & "|", vbTextCompare) = 0) Then
+            tmp = tmp & cell.Value & "|"
+        End If
+    Next cell
 
-If Len(tmp) > 0 Then tmp = Left(tmp, Len(tmp) - 1)
+    If Len(tmp) > 0 Then tmp = Left(tmp, Len(tmp) - 1)
 
-UniqueVals = Split(tmp, "|")
+    UniqueVals = Split(tmp, "|")
 
 End Function
+
 Function FileWriter()
-Dim w As Workbook
-Dim reportwb As Workbook
-Set reportwb = ActiveWorkbook
-Set w = Application.Workbooks.Add
+    Dim w As Workbook
+    Dim reportwb As Workbook
+    Set reportwb = ActiveWorkbook
+    Set w = Application.Workbooks.Add
 
 
     reportwb.Sheets("Finished Analysis").Copy _
@@ -192,10 +203,7 @@ Set w = Application.Workbooks.Add
     w.Close
     
 End Function
-Sub showitall()
-Sheet2.ShowAllData
 
-End Sub
 Function SheetExists(shtName As String, Optional wb As Workbook) As Boolean
     Dim sht As Worksheet
 
