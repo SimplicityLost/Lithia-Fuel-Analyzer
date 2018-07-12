@@ -9,7 +9,7 @@ Function Analyzer()
     'break out the gallon totals by month and store
     Sheet4.Cells.Delete
     Sheet8.Cells.Delete
-    Sheet2.ShowAllData
+
     
     lastrow = Sheet2.Cells(Sheet2.Rows.Count, "A").End(xlUp).Row
     storelist = UniqueVals(Sheet2.Range("K2:K" & lastrow))
@@ -21,8 +21,9 @@ Function Analyzer()
     storerow = 2
     fcrow = storerow
         
-    ReDim Analysis(1 To Application.CountA(storelist), 1 To (4 + Application.CountA(datelist) * 3))
-    
+    ReDim Analysis(1 To 1 + Application.CountA(storelist), 1 To (4 + Application.CountA(datelist) * 3))
+    ReDim Domo(1 To (4 + Application.CountA(datelist) * 3), 1 To 4)
+     
     Analysis(1, 1) = "Store#"
 
     For Each store In storelist
@@ -83,13 +84,13 @@ Function Analyzer()
                 Analysis(storerow, (mnthcol) + (Application.CountA(datelist) * 2)) = fcvalue
             End If
             
-'            If fcvalue <> 0 Then
-'                Sheet8.Cells(fcrow, 1).Value = store
-'                Sheet8.Cells(fcrow, 2).Value = fcvalue
-'                Sheet8.Cells(fcrow, 3).Value = transdate
-'                Sheet8.Cells(fcrow, 4).Value = Application.WorksheetFunction.VLookup(store, Sheet6.Range("D:E"), 2, 0)
-'                fcrow = fcrow + 1
-'            End If
+            If fcvalue <> 0 Then
+                Domo(fcrow, 1) = store
+                Domo(fcrow, 2) = fcvalue
+                Domo(fcrow, 3) = transdate
+                Domo(fcrow, 4) = Application.WorksheetFunction.VLookup(store, Sheet6.Range("D:E"), 2, 0)
+                fcrow = fcrow + 1
+            End If
 nxtmnth:
             mnthcol = mnthcol + 1
         Next transdate
@@ -115,6 +116,7 @@ nxtmnth:
     '.Range("A1:" & Split(Cells(1, UBound(fueldata, 2)).Address, "$")(1) & UBound(fueldata, 1)).Value = fueldata
     
     Sheet4.Range("A2:" & Split(Cells(1, UBound(Analysis, 2)).Address, "$")(1) & UBound(Analysis, 1)).Value = Analysis
+    Sheet8.Range("A2:D" & (1 + UBound(Domo, 1))).Value = Domo
     
     lastcol = Sheet4.Cells(1, Sheet4.Columns.Count).End(xlToLeft).Column
     
