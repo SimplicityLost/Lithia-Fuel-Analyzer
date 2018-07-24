@@ -1,6 +1,8 @@
 {
 	"Module Paths": {
 		"a_Analyzer": "Src/a_Analyzer.bas",
-		"Sheet5": "Src/Sheet5.cls"
+		"Sheet5": "Src/Sheet5.cls",
+		"z_Utilities": "src/z_Utilities.bas",
+		"PerformanceMonitor": "src/PerformanceMonitor.cls"
 	}
 }

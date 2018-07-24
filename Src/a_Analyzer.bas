@@ -6,12 +6,21 @@ Function Analyzer(writefile As Boolean, writedomo As Boolean)
     Dim FuelData
     Dim InvData
     Dim InvDataTemp
-
+    Dim hptimer As PerformanceMonitor
+    Dim datedict As Scripting.Dictionary
+    Dim storedict As Scripting.Dictionary
+    
     'get data from fuel processor
     'break out the gallon totals by month and store
     Sheet4.Cells.Delete
     Sheet8.Cells.Delete
-
+    
+    Set hptimer = New PerformanceMonitor
+    Set datedict = New Scripting.Dictionary
+    Set storedict = New Scripting.Dictionary
+    
+    hptimer.StartCounter
+    
     
     lastrow = Sheet2.Cells(Sheet2.Rows.Count, "A").End(xlUp).Row
     storelist = UniqueVals(Sheet2.Range("K2:K" & lastrow))
@@ -24,6 +33,11 @@ Function Analyzer(writefile As Boolean, writedomo As Boolean)
     fcrow = 2
         
     FuelData = Sheet2.Range("A2:N" & lastrow).Value
+    
+    Debug.Print ("UniqueVal: " & hptimer.TimeElapsed)
+    hptimer.StartCounter
+    
+    
     'Build Inventory Array
     InvDataTemp = Sheet3.Range("A1:Y" & Sheet3.Cells(Sheet3.Rows.Count, "A").End(xlUp).Row).Value
     ReDim InvData(1 To UBound(InvDataTemp, 1), 0 To 12)
@@ -37,7 +51,8 @@ Function Analyzer(writefile As Boolean, writedomo As Boolean)
             Next y
         Next x
     
-    
+    Debug.Print ("Inventory: " & hptimer.TimeElapsed)
+    hptimer.StartCounter
     
     
     'Set up arrays
@@ -46,7 +61,25 @@ Function Analyzer(writefile As Boolean, writedomo As Boolean)
      
     Analysis(1, 1) = "Store#"
 
+
+    'create index dictionaries
+    For irow = 2 To UBound(storelist) + 1
+        Analysis(irow, 1) = storelist(irow - 1)
+        storedict(storelist(irow - 1)) = irow
+    Next irow
+    
+    For jcol = 2 To UBound(datelist) + 1
+        Analysis(1, jcol) = datelist(jcol - 1) & " Fuel"
+        Analysis(1, jcol + UBound(datelist)) = datelist(jcol - 1) & " Cars"
+        Analysis(1, jcol + (UBound(datelist) * 2)) = datelist(jcol - 1) & " F/C"
+        datedict(datelist(jcol - 1)) = jcol
+    Next jcol
+
+'Loop start
     For Each store In storelist
+        
+        DoEvents
+        
         mnthcol = 2
         Analysis(storerow, 1) = store
         On Error GoTo 0
@@ -67,15 +100,20 @@ Function Analyzer(writefile As Boolean, writedomo As Boolean)
             End If
             
     'Get the units of fuel for each month
+        hptimer.StartCounter
+        
         For j = 1 To UBound(FuelData, 1)
             If FuelData(j, 11) = store And FuelData(j, 1) = CDate(transdate) Then
             totalunits = FuelData(j, 3) + totalunits
             End If
         Next j
-
+            
         If totalunits <> 0 Then
             Analysis(storerow, mnthcol) = totalunits
         End If
+        
+        Debug.Print ("Fuel Loop: " & hptimer.TimeElapsed)
+        hptimer.StartCounter
         
         totalunits = 0
     
@@ -86,6 +124,9 @@ Function Analyzer(writefile As Boolean, writedomo As Boolean)
             End If
             
         Next k
+
+        Debug.Print ("InvAnalysis: " & hptimer.TimeElapsed)
+        hptimer.StartCounter
 
 '        On Error GoTo inverror
 '
@@ -119,6 +160,10 @@ Function Analyzer(writefile As Boolean, writedomo As Boolean)
             If fcvalue <> 0 Then
                 Analysis(storerow, (mnthcol) + (Application.CountA(datelist) * 2)) = fcvalue
             End If
+            
+            Debug.Print ("F/C: " & hptimer.TimeElapsed)
+            hptimer.StartCounter
+            
             
     'Populate the Domo if doing it
             If fcvalue <> 0 And writedomo Then
@@ -156,6 +201,8 @@ nxtmnth:
         End If
         
     storerow = storerow + 1
+        Debug.Print ("Store Loop: " & hptimer.TimeElapsed)
+        hptimer.StartCounter
         
     Next store
 
@@ -182,7 +229,7 @@ nxtmnth:
         End If
     Next i
     
-    
+
 
     If writedomo = True Then
         Sheet8.Range("A1:D" & UBound(Domo, 2)).Value = Domo
@@ -190,6 +237,10 @@ nxtmnth:
     
     If writefile = True Then: Call FileWriter
     Analyzer = MsgBox("All Done!" & vbNewLine & "The following stores have an unusual variance:" & vbNewLine & varstore)
+        
+        
+        Debug.Print ("Total time: " & hptimer.TimeElapsed)
+        
     
     Exit Function
 
@@ -197,7 +248,7 @@ inverror:
     Resume nxtmnth
 
 
-
+    
     Application.ScreenUpdating = True
 End Function
 

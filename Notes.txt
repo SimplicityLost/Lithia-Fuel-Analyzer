@@ -1,0 +1,4 @@
+Currently only does about 3 store/days per second - not fast enough. Hangs if not the focus
+----
+
+Try having a loop go through the Analyzer loop and save the indexes of each store and date in a dictionary. Then loop through the fuel data -once- and use the dictionary to put each thing in it's place.
