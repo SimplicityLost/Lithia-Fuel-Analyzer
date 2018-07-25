@@ -1,5 +1,5 @@
 Attribute VB_Name = "a_Analyzer"
-Function Analyzer(writefile As Boolean, writedomo As Boolean)
+Function Analyzer(writefile As Boolean)
     Application.ScreenUpdating = False
     Dim Analysis
     Dim Domo
