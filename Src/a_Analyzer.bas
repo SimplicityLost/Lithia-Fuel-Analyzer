@@ -44,13 +44,30 @@ Function Analyzer(writefile As Boolean, writedomo As Boolean)
     
     'Build Inventory Array
     InvDataTemp = Sheet3.Range("A1:Y" & Sheet3.Cells(Sheet3.Rows.Count, "A").End(xlUp).Row).Value
+    svccars = Sheet3.Range("Z1:AA" & Sheet3.Cells(Sheet3.Rows.Count, "Z").End(xlUp).Row).Value
     ReDim InvData(1 To UBound(InvDataTemp, 1) - 1, 0 To 12)
         For x = 2 To UBound(InvDataTemp, 1)
+            svcinv = 0
+            For y = 2 To UBound(svccars, 1)
+                If svccars(y, 1) = InvDataTemp(x, 1) Then
+                    svcinv = svccars(y, 2)
+                    Exit For
+                End If
+            Next y
             InvData(x - 1, 0) = InvDataTemp(x, 1)
             For y = 2 To UBound(InvDataTemp, 2)
                 If InvDataTemp(1, y) <> "" Then
-                invcol = Split(InvDataTemp(1, y), ";")(0)
-                InvData(x - 1, invcol) = InvData(x - 1, invcol) + InvDataTemp(x, y)
+                    If invcol <> Split(InvDataTemp(1, y), ";")(0) Then mnthinx = 0
+                    
+                    invcol = Split(InvDataTemp(1, y), ";")(0)
+
+                    InvData(x - 1, invcol) = InvData(x - 1, invcol) + InvDataTemp(x, y)
+                    
+                    If mnthinx = 0 And InvData(x - 1, invcol) <> 0 Then
+                        InvData(x - 1, invcol) = InvData(x - 1, invcol) + svcinv
+                    End If
+                    
+                    mnthinx = mnthinx + 1
                 End If
             Next y
         Next x
@@ -74,11 +91,15 @@ Function Analyzer(writefile As Boolean, writedomo As Boolean)
     
     
     'Set up arrays
-    ReDim Preserve InvData(1 To UBound(InvData), 0 To lastmnth)
+    ReDim Preserve InvData(1 To UBound(InvData, 1), 0 To lastmnth)
     ReDim Analysis(1 To 1 + Application.CountA(storelist), 1 To 4 + Application.CountA(datelist) * 2)
     ReDim Domo(1 To (1 + Application.CountA(datelist) * Application.CountA(storelist)), 1 To 4)
+        
+    Domo(1, 1) = "Store#"
+    Domo(1, 2) = "F/C"
+    Domo(1, 3) = "Transaction Date"
+    Domo(1, 4) = "Account Name"
     
-     
     Analysis(1, 1) = "Store#"
 
 
@@ -108,55 +129,60 @@ Function Analyzer(writefile As Boolean, writedomo As Boolean)
         Analysis(storeindex, dateindex) = Analysis(storeindex, dateindex) + Val(FuelData(xrow, 3)) + 0
     Next xrow
     
+    'Calculate F/C and fill out Analysis array
     For Each transdate In datelist
-    For Each store In storelist
-        storeindex = storedict(store)
-        invindex = invdict(store)
-        fuelindex = datedict(transdate & " Fuel")
-        fcindex = datedict(transdate & " F/C")
-    
-        If Not IsEmpty(invindex) And Not IsEmpty(storeindex) And Not IsEmpty(fuelindex) And Not IsEmpty(fcindex) Then
-            If InvData(invindex, Month(transdate)) <> 0 And Analysis(storeindex, fuelindex) <> 0 Then
-                Analysis(storeindex, fcindex) = Analysis(storeindex, fuelindex) / InvData(invdict(store), Month(transdate))
+        For Each store In storelist
+            storeindex = storedict(store)
+            invindex = invdict(store)
+            fuelindex = datedict(transdate & " Fuel")
+            fcindex = datedict(transdate & " F/C")
+        
+            If Not IsEmpty(invindex) And Not IsEmpty(storeindex) And Not IsEmpty(fuelindex) And Not IsEmpty(fcindex) Then
+                If InvData(invindex, Month(transdate)) <> 0 And Analysis(storeindex, fuelindex) <> 0 Then
+                    Analysis(storeindex, fcindex) = Analysis(storeindex, fuelindex) / InvData(invdict(store), Month(transdate))
+                End If
             End If
-        End If
-    Next store
+        Next store
     Next transdate
     
     
-'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-'   Everything after this line is not ready
-
 
     'Get average, stdev, and cov for F/C
-        fcstart = (2 + Application.CountA(datelist) * 2)
-        fcend = (1 + Application.CountA(datelist) * 3)
+    fcstart = datedict("1/1/2018 F/C")
+    fcend = UBound(Analysis, 2) - 3
+        
+    Analysis(1, fcend + 1) = "Average F/C"
+    Analysis(1, fcend + 2) = "Day Over Day"
+    Analysis(1, fcend + 3) = "% Change"
+        
+    For storerow = 2 To UBound(Analysis, 1)
         avgtotal = 0
         avgcount = 0
         For n = fcstart To fcend
-            avgtotal = Analysis(storerow, n) + avgtotal
-            If Analysis(storerow, n) <> 0 Then: avgcount = avgcount + 1
+            If Analysis(storerow, n) <> 0 Then
+                avgcount = avgcount + 1
+                avgtotal = Analysis(storerow, n) + avgtotal
+            End If
         Next n
             
         If avgtotal <> 0 And avgcount <> 0 Then
-            Analysis(storerow, 2 + Application.CountA(datelist) * 3) = avgtotal / avgcount
-        End If
-        Analysis(storerow, 3 + Application.CountA(datelist) * 3) = Analysis(storerow, 1 + Application.CountA(datelist) * 3) - Analysis(storerow, Application.CountA(datelist) * 3)
-        If Analysis(storerow, Application.CountA(datelist) * 3) <> 0 Then
-            Analysis(storerow, 4 + Application.CountA(datelist) * 3) = Analysis(storerow, 3 + Application.CountA(datelist) * 3) / Analysis(storerow, Application.CountA(datelist) * 3)
-        Else
-            Analysis(storerow, 4 + Application.CountA(datelist) * 3) = 0
+            Analysis(storerow, fcend + 1) = avgtotal / avgcount
         End If
         
-    storerow = storerow + 1
+        Analysis(storerow, fcend + 2) = Analysis(storerow, fcend) - Analysis(storerow, fcend - 1)
+        
+        If Analysis(storerow, fcend) <> 0 Then
+            Analysis(storerow, fcend + 3) = Analysis(storerow, fcend + 2) / Analysis(storerow, fcend)
+        Else
+            Analysis(storerow, fcend + 3) = 0
+        End If
+        
         Debug.Print ("Store Loop: " & hptimer.TimeElapsed)
         hptimer.StartCounter
-        
-    Next store
+    Next storerow
 
     
     Sheet4.Range("A1:" & Split(Cells(1, UBound(Analysis, 2)).Address, "$")(1) & UBound(Analysis, 1)).Value = Analysis
-    
     Sheet8.Range("A1:D" & (UBound(Domo, 1))).Value = Domo
     
     lastcol = Sheet4.Cells(1, Sheet4.Columns.Count).End(xlToLeft).Column
@@ -167,7 +193,7 @@ Function Analyzer(writefile As Boolean, writedomo As Boolean)
     'overage highlight
     lastrow = Sheet4.Cells(Sheet4.Rows.Count, 2).End(xlUp).Row
     For i = 2 To lastrow
-    Set stcell = Sheet4.Cells(i, 1 + Application.CountA(datelist) * 3)
+    Set stcell = Sheet4.Cells(i, lastcol - 3)
         If IsNumeric(stcell.Value) Then
             If stcell.Value > (Application.WorksheetFunction.VLookup(Sheet4.Cells(i, 1).Value, Sheet6.Range("J:L"), 3, 0) * 3) + _
                 (Application.WorksheetFunction.VLookup(Sheet4.Cells(i, 1).Value, Sheet6.Range("J:L"), 2, 0)) Then
@@ -177,26 +203,12 @@ Function Analyzer(writefile As Boolean, writedomo As Boolean)
         End If
     Next i
     
-
-
-    If writedomo = True Then
-        Sheet8.Range("A1:D" & UBound(Domo, 2)).Value = Domo
-    End If
-    
     If writefile = True Then: Call FileWriter
     Analyzer = MsgBox("All Done!" & vbNewLine & "The following stores have an unusual variance:" & vbNewLine & varstore)
         
         
         Debug.Print ("Total time: " & hptimer.TimeElapsed)
-        
-    
-    Exit Function
-
-inverror:
-    Resume nxtmnth
-
-
-    
+          
     Application.ScreenUpdating = True
 End Function
 
