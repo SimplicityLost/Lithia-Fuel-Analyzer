@@ -9,6 +9,10 @@ Function Analyzer(writefile As Boolean, writedomo As Boolean)
     Dim hptimer As PerformanceMonitor
     Dim datedict As Scripting.Dictionary
     Dim storedict As Scripting.Dictionary
+    Dim invdict As Scripting.Dictionary
+    Dim xrow
+    Dim storeindex
+    Dim dateindex
     
     'get data from fuel processor
     'break out the gallon totals by month and store
@@ -18,7 +22,7 @@ Function Analyzer(writefile As Boolean, writedomo As Boolean)
     Set hptimer = New PerformanceMonitor
     Set datedict = New Scripting.Dictionary
     Set storedict = New Scripting.Dictionary
-    
+    Set invdict = New Scripting.Dictionary
     hptimer.StartCounter
     
     
@@ -40,7 +44,7 @@ Function Analyzer(writefile As Boolean, writedomo As Boolean)
     
     'Build Inventory Array
     InvDataTemp = Sheet3.Range("A1:Y" & Sheet3.Cells(Sheet3.Rows.Count, "A").End(xlUp).Row).Value
-    ReDim InvData(1 To UBound(InvDataTemp, 1), 0 To 12)
+    ReDim InvData(1 To UBound(InvDataTemp, 1) - 1, 0 To 12)
         For x = 2 To UBound(InvDataTemp, 1)
             InvData(x - 1, 0) = InvDataTemp(x, 1)
             For y = 2 To UBound(InvDataTemp, 2)
@@ -51,13 +55,29 @@ Function Analyzer(writefile As Boolean, writedomo As Boolean)
             Next y
         Next x
     
+    'resize inventory array
+    For y = 0 To 11
+        mnthtotal = 0
+        For x = 2 To UBound(InvData, 1)
+            mnthtotal = mnthtotal + InvData(x, 12 - y)
+        Next x
+        If mnthtotal <> 0 Then
+            lastmnth = 12 - y
+            Exit For
+        End If
+    Next y
+    
+    
+    
     Debug.Print ("Inventory: " & hptimer.TimeElapsed)
     hptimer.StartCounter
     
     
     'Set up arrays
-    ReDim Analysis(1 To 1 + Application.CountA(storelist), 1 To (4 + Application.CountA(datelist) * 3))
+    ReDim Preserve InvData(1 To UBound(InvData), 0 To lastmnth)
+    ReDim Analysis(1 To 1 + Application.CountA(storelist), 1 To 4 + Application.CountA(datelist) * 2)
     ReDim Domo(1 To (1 + Application.CountA(datelist) * Application.CountA(storelist)), 1 To 4)
+    
      
     Analysis(1, 1) = "Store#"
 
@@ -68,118 +88,46 @@ Function Analyzer(writefile As Boolean, writedomo As Boolean)
         storedict(storelist(irow - 1)) = irow
     Next irow
     
+    For irow = 1 To UBound(InvData)
+        invdict(InvData(irow, 0)) = irow
+    Next irow
+    
     For jcol = 2 To UBound(datelist) + 1
         Analysis(1, jcol) = datelist(jcol - 1) & " Fuel"
-        Analysis(1, jcol + UBound(datelist)) = datelist(jcol - 1) & " Cars"
-        Analysis(1, jcol + (UBound(datelist) * 2)) = datelist(jcol - 1) & " F/C"
-        datedict(datelist(jcol - 1)) = jcol
+        Analysis(1, jcol + UBound(datelist)) = datelist(jcol - 1) & " F/C"
+        
+        datedict(Analysis(1, jcol)) = jcol
+        datedict(Analysis(1, jcol + UBound(datelist))) = jcol + UBound(datelist)
+        
     Next jcol
-
-'Loop start
-    For Each store In storelist
-        
-        DoEvents
-        
-        mnthcol = 2
-        Analysis(storerow, 1) = store
-        On Error GoTo 0
-        For Each transdate In datelist
-        
-    'Write the headers
-            If storerow = 2 Then
-                Analysis(1, mnthcol) = transdate & " Fuel"
-                Analysis(1, (mnthcol) + Application.CountA(datelist)) = transdate & " Cars"
-                Analysis(1, (mnthcol) + (Application.CountA(datelist) * 2)) = transdate & " F/C"
-                Analysis(1, 2 + Application.CountA(datelist) * 3) = "Average F/C"
-                Analysis(1, 3 + Application.CountA(datelist) * 3) = "Day over Day"
-                Analysis(1, 4 + Application.CountA(datelist) * 3) = "% Change"
-                Domo(1, 1) = "Store#"
-                Domo(1, 2) = "F/C"
-                Domo(1, 3) = "Transaction Date"
-                Domo(1, 4) = "Account Name"
-            End If
-            
-    'Get the units of fuel for each month
-        hptimer.StartCounter
-        
-        For j = 1 To UBound(FuelData, 1)
-            If FuelData(j, 11) = store And FuelData(j, 1) = CDate(transdate) Then
-            totalunits = FuelData(j, 3) + totalunits
-            End If
-        Next j
-            
-        If totalunits <> 0 Then
-            Analysis(storerow, mnthcol) = totalunits
-        End If
-        
-        Debug.Print ("Fuel Loop: " & hptimer.TimeElapsed)
-        hptimer.StartCounter
-        
-        totalunits = 0
     
-    'Get the inventory for each month
-        For k = 1 To UBound(InvData, 1)
-            If InvData(k, 0) = store And InvData(k, Month(transdate)) <> "" Then
-                Analysis(storerow, (mnthcol) + Application.CountA(datelist)) = InvData(k, Month(transdate))
+    For xrow = 1 To UBound(FuelData, 1)
+        storeindex = storedict(FuelData(xrow, 11))
+        dateindex = datedict(FuelData(xrow, 1) & " Fuel")
+    
+        Analysis(storeindex, dateindex) = Analysis(storeindex, dateindex) + Val(FuelData(xrow, 3)) + 0
+    Next xrow
+    
+    For Each transdate In datelist
+    For Each store In storelist
+        storeindex = storedict(store)
+        invindex = invdict(store)
+        fuelindex = datedict(transdate & " Fuel")
+        fcindex = datedict(transdate & " F/C")
+    
+        If Not IsEmpty(invindex) And Not IsEmpty(storeindex) And Not IsEmpty(fuelindex) And Not IsEmpty(fcindex) Then
+            If InvData(invindex, Month(transdate)) <> 0 And Analysis(storeindex, fuelindex) <> 0 Then
+                Analysis(storeindex, fcindex) = Analysis(storeindex, fuelindex) / InvData(invdict(store), Month(transdate))
             End If
-            
-        Next k
+        End If
+    Next store
+    Next transdate
+    
+    
+'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+'   Everything after this line is not ready
 
-        Debug.Print ("InvAnalysis: " & hptimer.TimeElapsed)
-        hptimer.StartCounter
 
-'        On Error GoTo inverror
-'
-'            invmnthcoln = Application.Match(Month(transdate) & ";n", Sheet3.Range("1:1"), 0)
-'            invmnthcolu = Application.Match(Month(transdate) & ";u", Sheet3.Range("1:1"), 0)
-'            invstorerow = Application.Match(store, Sheet3.Range("A:A"), 0)
-'
-'
-'            serviceval = 0
-'
-'            If Not IsError(Application.Match("serv", Sheet3.Range("1:1"), 0)) Then
-'                servcol = Application.Match("serv", Sheet3.Range("1:1"), 0)
-'                If Not IsError(Application.Match(store, Sheet3.Columns(servcol - 1), 0)) Then
-'                    servrow = Application.Match(store, Sheet3.Columns(servcol - 1), 0)
-'                    serviceval = Sheet3.Cells(servrow, servcol)
-'                End If
-'            End If
-'
-'
-'
-'            invval = Sheet3.Cells(invstorerow, invmnthcoln).Value + Sheet3.Cells(invstorerow, invmnthcolu).Value + serviceval
-            
-            
-    'Generate the F/C Value
-            If Analysis(storerow, (mnthcol) + Application.CountA(datelist)) <> 0 Then
-                fcvalue = Analysis(storerow, mnthcol) / Analysis(storerow, (mnthcol) + Application.CountA(datelist))
-            Else
-                fcvalue = 0
-            End If
-            
-            If fcvalue <> 0 Then
-                Analysis(storerow, (mnthcol) + (Application.CountA(datelist) * 2)) = fcvalue
-            End If
-            
-            Debug.Print ("F/C: " & hptimer.TimeElapsed)
-            hptimer.StartCounter
-            
-            
-    'Populate the Domo if doing it
-            If fcvalue <> 0 And writedomo Then
-                Domo(fcrow, 1) = store
-                Domo(fcrow, 2) = fcvalue
-                Domo(fcrow, 3) = transdate
-                Domo(fcrow, 4) = Application.WorksheetFunction.VLookup(store, Sheet6.Range("D:E"), 2, 0)
-                fcrow = fcrow + 1
-            End If
-
-nxtmnth:
-            mnthcol = mnthcol + 1
-        Next transdate
-        
-        On Error GoTo 0
-        
     'Get average, stdev, and cov for F/C
         fcstart = (2 + Application.CountA(datelist) * 2)
         fcend = (1 + Application.CountA(datelist) * 3)
@@ -256,6 +204,8 @@ Function UniqueVals(rangein As Range) As Variant
 
     Dim tmp As String
     Dim cell
+    Dim arr() As String
+    Dim arr2() As String
 
     For Each cell In rangein
         If (cell.Value <> "") And (InStr(1, tmp, cell.Value & "|", vbTextCompare) = 0) Then
@@ -264,8 +214,16 @@ Function UniqueVals(rangein As Range) As Variant
     Next cell
 
     If Len(tmp) > 0 Then tmp = Left(tmp, Len(tmp) - 1)
-
-    UniqueVals = Split(tmp, "|")
+    
+    arr = Split(tmp, "|")
+    
+    ReDim arr2(1 To UBound(arr, 1) + 1)
+    
+    For i = 1 To (UBound(arr, 1) + 1)
+        arr2(i) = arr(i - 1)
+    Next i
+    
+    UniqueVals = arr2
 
 End Function
 
