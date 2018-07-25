@@ -10,9 +10,12 @@ Function Analyzer(writefile As Boolean, writedomo As Boolean)
     Dim datedict As Scripting.Dictionary
     Dim storedict As Scripting.Dictionary
     Dim invdict As Scripting.Dictionary
+    Dim lithiadict As Scripting.Dictionary
+    
     Dim xrow
     Dim storeindex
     Dim dateindex
+    Dim domorow
     
     'get data from fuel processor
     'break out the gallon totals by month and store
@@ -23,6 +26,7 @@ Function Analyzer(writefile As Boolean, writedomo As Boolean)
     Set datedict = New Scripting.Dictionary
     Set storedict = New Scripting.Dictionary
     Set invdict = New Scripting.Dictionary
+    Set lithiadict = New Scripting.Dictionary
     hptimer.StartCounter
     
     
@@ -101,12 +105,17 @@ Function Analyzer(writefile As Boolean, writedomo As Boolean)
     Domo(1, 4) = "Account Name"
     
     Analysis(1, 1) = "Store#"
-
-
+    
+    domorow = 2
+    
     'create index dictionaries
     For irow = 2 To UBound(storelist) + 1
         Analysis(irow, 1) = storelist(irow - 1)
         storedict(storelist(irow - 1)) = irow
+    Next irow
+    
+    For irow = 2 To Sheet6.Cells(Sheet6.Rows.Count, "D").End(xlUp).Row
+        lithiadict(Sheet6.Range("D" & irow).Value) = Sheet6.Range("E" & irow).Value
     Next irow
     
     For irow = 1 To UBound(InvData)
@@ -127,7 +136,9 @@ Function Analyzer(writefile As Boolean, writedomo As Boolean)
         dateindex = datedict(FuelData(xrow, 1) & " Fuel")
     
         Analysis(storeindex, dateindex) = Analysis(storeindex, dateindex) + Val(FuelData(xrow, 3)) + 0
+        
     Next xrow
+    
     
     'Calculate F/C and fill out Analysis array
     For Each transdate In datelist
@@ -140,6 +151,13 @@ Function Analyzer(writefile As Boolean, writedomo As Boolean)
             If Not IsEmpty(invindex) And Not IsEmpty(storeindex) And Not IsEmpty(fuelindex) And Not IsEmpty(fcindex) Then
                 If InvData(invindex, Month(transdate)) <> 0 And Analysis(storeindex, fuelindex) <> 0 Then
                     Analysis(storeindex, fcindex) = Analysis(storeindex, fuelindex) / InvData(invdict(store), Month(transdate))
+                    
+                    'fill out Domo array
+                    Domo(domorow, 1) = store
+                    Domo(domorow, 2) = Analysis(storeindex, fcindex)
+                    Domo(domorow, 3) = transdate
+                    Domo(domorow, 4) = lithiadict(store)
+                    domorow = domorow + 1
                 End If
             End If
         Next store
